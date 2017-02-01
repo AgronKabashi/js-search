@@ -16,11 +16,13 @@ export class UnorderedSearchIndex implements ISearchIndex {
    * @inheritDocs
    */
   indexDocument(token : string, uid : string, document : Object) : void {
-    if (!this._tokenToUidToDocumentMap[token]) {
-      this._tokenToUidToDocumentMap[token] = {};
+    var tokenToUidToDocumentMap = this._tokenToUidToDocumentMap;
+
+    if (!tokenToUidToDocumentMap.hasOwnProperty(token)) {
+      tokenToUidToDocumentMap[token] = {};
     }
 
-    this._tokenToUidToDocumentMap[token][uid] = document;
+    tokenToUidToDocumentMap[token][uid] = document;
   }
 
   /**
@@ -30,28 +32,42 @@ export class UnorderedSearchIndex implements ISearchIndex {
     var uidToDocumentMap : {[uid : string]:any} = {};
 
     for (var i = 0, numTokens = tokens.length; i < numTokens; i++) {
-      var token:string = tokens[i];
-      var currentUidToDocumentMap : {[uid : string] : any} = this._tokenToUidToDocumentMap[token] || {};
+      var token = tokens[i];
+      var currentUidToDocumentMap = this._tokenToUidToDocumentMap[token] || {};
 
       if (i === 0) {
-        for (var uid in currentUidToDocumentMap) {
+        var keys = Object.keys(currentUidToDocumentMap);
+        var numKeys = keys.length;
+
+        // Short circuit if no matches were found for any given token.
+        if (numKeys === 0) {
+          return [];
+        }
+
+        for (var i = 0; i < numKeys; i++) {
+          var uid = keys[i];
+
           uidToDocumentMap[uid] = currentUidToDocumentMap[uid];
         }
       } else {
-        for (var uid in uidToDocumentMap) {
-          if (!currentUidToDocumentMap[uid]) {
+        var keys = Object.keys(currentUidToDocumentMap);
+        var numKeys = keys.length;
+
+        // Short circuit if no matches were found for any given token.
+        if (numKeys === 0) {
+          return [];
+        }
+
+        for (var i = 0; i < numKeys; i++) {
+          var uid = keys[i];
+
+          if (!currentUidToDocumentMap.hasOwnProperty(uid)) {
             delete uidToDocumentMap[uid];
           }
         }
       }
     }
 
-    var documents : Array<Object> = [];
-
-    for (var uid in uidToDocumentMap) {
-      documents.push(uidToDocumentMap[uid]);
-    }
-
-    return documents;
+    return ((Object.values(uidToDocumentMap) : any) : Array<Object>);
   }
 };

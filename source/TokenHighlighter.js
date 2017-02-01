@@ -6,6 +6,8 @@ import { LowerCaseSanitizer } from './Sanitizer/index';
 import type { IIndexStrategy } from './IndexStrategy/index';
 import type { ISanitizer } from './Sanitizer/index';
 
+// TODO Split into its own package; this isn't core to search.
+
 /**
  * This utility highlights the occurrences of tokens within a string of text. It can be used to give visual indicators
  * of match criteria within searchable fields.
@@ -96,7 +98,7 @@ export class TokenHighlighter {
    * @private
    */
   _wrapText(text : string) : string {
-    const tagName = this._wrapperTagName;
+    var tagName = this._wrapperTagName;
     return `<${tagName}>${text}</${tagName}>`;
   }
 };

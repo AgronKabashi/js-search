@@ -25,9 +25,10 @@ export class StopWordsTokenizer implements ITokenizer {
    * @inheritDocs
    */
   tokenize(text : string) : Array<string> {
-    return this._tokenizer.tokenize(text)
+    return this._tokenizer
+      .tokenize(text)
       .filter(
-        (token) => token && StopWordsMap[token] !== token
+        (token) => !StopWordsMap.hasOwnProperty(token)
       );
   }
 };

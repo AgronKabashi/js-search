@@ -38,28 +38,33 @@ export class TfIdfSearchIndex implements ISearchIndex {
   /**
    * @inheritDocs
    */
-  indexDocument(token : string, uid : string, document : Object) : void {
+  indexDocument(token : string, uid : string, doc : Object) : void {
     this._tokenToIdfCache = {}; // New index invalidates previous IDF caches
 
-    if (typeof this._tokenMap[token] !== 'object') {
-      this._tokenMap[token] = {
+    var tokenMap = this._tokenMap;
+    var tokenDatum;
+
+    if (!tokenMap.hasOwnProperty(token)) {
+      tokenMap[token] = tokenDatum = {
         $numDocumentOccurrences: 0,
         $totalNumOccurrences: 1,
         $uidMap: {},
       };
     } else {
-      this._tokenMap[token].$totalNumOccurrences++;
+      tokenDatum = tokenMap[token];
+      tokenDatum.$totalNumOccurrences++;
     }
 
-    if (!this._tokenMap[token].$uidMap[uid]) {
-      this._tokenMap[token].$numDocumentOccurrences++;
+    var uidMap = tokenDatum.$uidMap;
 
-      this._tokenMap[token].$uidMap[uid] = {
-        $document: document,
+    if (!uidMap.hasOwnProperty(uid)) {
+      tokenDatum.$numDocumentOccurrences++;
+      uidMap[uid] = {
+        $document: doc,
         $numTokenOccurrences: 1
       };
     } else {
-      this._tokenMap[token].$uidMap[uid].$numTokenOccurrences++;
+      uidMap[uid].$numTokenOccurrences++;
     }
   }
 
@@ -70,38 +75,42 @@ export class TfIdfSearchIndex implements ISearchIndex {
     var uidToDocumentMap : {[uid : string] : Object} = {};
 
     for (var i = 0, numTokens = tokens.length; i < numTokens; i++) {
-      var token:string = tokens[i];
-      var tokenMetadata:ITfIdfTokenMetadata = this._tokenMap[token];
+      var token = tokens[i];
+      var tokenMetadata = this._tokenMap[token];
 
       // Short circuit if no matches were found for any given token.
       if (!tokenMetadata) {
         return [];
       }
 
+      var uidMap = tokenMetadata.$uidMap;
+
       if (i === 0) {
-        for (var uid in tokenMetadata.$uidMap) {
-          uidToDocumentMap[uid] = tokenMetadata.$uidMap[uid].$document;
+        var keys = Object.keys(uidMap);
+        for (var j = 0, numKeys = keys.length; j < numKeys; j++) {
+          var uid = keys[j];
+
+          uidToDocumentMap[uid] = uidMap[uid].$document;
         }
       } else {
-        for (var uid in uidToDocumentMap) {
-          if (!tokenMetadata.$uidMap[uid]) {
+        var keys = Object.keys(uidToDocumentMap);
+        for (var j = 0, numKeys = keys.length; j < numKeys; j++) {
+          var uid = keys[j];
+
+          if (!uidMap.hasOwnProperty(uid)) {
             delete uidToDocumentMap[uid];
           }
         }
       }
     }
 
-    var documents : Array<Object> = [];
-
-    for (var uid in uidToDocumentMap) {
-      documents.push(uidToDocumentMap[uid]);
-    }
+    var documents : Array<Object> = ((Object.values(uidToDocumentMap) : any) : Array<Object>);
 
     // Return documents sorted by TF-IDF
-    return documents.sort(function (documentA, documentB) {
-      return this._calculateTfIdf(tokens, documentB, corpus) -
-        this._calculateTfIdf(tokens, documentA, corpus);
-    }.bind(this));
+    return documents.sort((documentA, documentB) =>
+      this._calculateTfIdf(tokens, documentB, corpus) -
+      this._calculateTfIdf(tokens, documentA, corpus)
+    );
   }
 
   /**
@@ -109,13 +118,19 @@ export class TfIdfSearchIndex implements ISearchIndex {
    * occur very frequently in the set of searchable documents and increases the weight of terms that occur rarely.
    */
   _calculateIdf(token : string, documents : Array<Object>) : number {
-    if (!this._tokenToIdfCache[token]) {
-      var numDocumentsWithToken:number = this._tokenMap[token] && this._tokenMap[token].$numDocumentOccurrences || 0;
+    var tokenToIdfCache = this._tokenToIdfCache;
+    if (!tokenToIdfCache.hasOwnProperty(token)) {
+      var tokenMap = this._tokenMap;
+      var numDocumentsWithToken:number = tokenMap.hasOwnProperty(token)
+        ? tokenMap[token].$numDocumentOccurrences
+        : 0;
 
-      this._tokenToIdfCache[token] = 1 + Math.log(documents.length / (1 + numDocumentsWithToken));
+      var calculated = tokenToIdfCache[token] = 1 + Math.log(documents.length / (1 + numDocumentsWithToken));
+
+      return calculated;
     }
 
-    return this._tokenToIdfCache[token];
+    return tokenToIdfCache[token];
   }
 
   /**
@@ -125,23 +140,23 @@ export class TfIdfSearchIndex implements ISearchIndex {
    * is offset by the frequency of the word in the corpus. This helps to adjust for the fact that some words appear
    * more frequently in general (e.g. a, and, the).
    */
-  _calculateTfIdf(tokens : Array<string>, document : Object, documents : Array<Object>) : number {
-    var score:number = 0;
+  _calculateTfIdf(tokens : Array<string>, doc : Object, documents : Array<Object>) : number {
+    var score = 0;
+    var uidFieldName = this._uidFieldName;
 
     for (var i = 0, numTokens = tokens.length; i < numTokens; ++i) {
-      var token:string = tokens[i];
+      var token = tokens[i];
 
-      var inverseDocumentFrequency:number = this._calculateIdf(token, documents);
+      var inverseDocumentFrequency = this._calculateIdf(token, documents);
 
       if (inverseDocumentFrequency === Infinity) {
         inverseDocumentFrequency = 0;
       }
 
-      var uid:any = document && document[this._uidFieldName];
-      var termFrequency:number =
-        this._tokenMap[token] &&
-        this._tokenMap[token].$uidMap[uid] &&
-        this._tokenMap[token].$uidMap[uid].$numTokenOccurrences || 0;
+      var uid = doc[uidFieldName];
+      var tokenDatum = this._tokenMap[token];
+      var uidMap = tokenDatum && tokenDatum.$uidMap[uid];
+      var termFrequency = uidMap && uidMap.$numTokenOccurrences || 0;
 
       score += termFrequency * inverseDocumentFrequency;
     }
