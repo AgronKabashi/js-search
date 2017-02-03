@@ -1,0 +1,144 @@
+var Benchmark = require('benchmark');
+var bb = require('beautify-benchmark');
+var fs = require('fs');
+
+var versions = [
+  {
+    label: 'latest',
+    module: require('js-search')
+  },
+  {
+    label: 'local',
+    module: require('../dist/commonjs/index')
+  }
+]
+
+fs.readFile('books.json', 'utf8',
+  (err, data) => setupBenchmarks(JSON.parse(data))
+);
+
+var benchmarks = [];
+
+function setupBenchmarks(corpus) {
+  initBenchmark({
+    corpus,
+    indexStrategy: 'PrefixIndexStrategy',
+    searchIndex: 'UnorderedSearchIndex'
+  });
+  initBenchmark({
+    corpus,
+    indexStrategy: 'AllSubstringsIndexStrategy',
+    searchIndex: 'UnorderedSearchIndex'
+  });
+  initBenchmark({
+    corpus,
+    indexStrategy: 'ExactWordIndexStrategy',
+    searchIndex: 'TfIdfSearchIndex'
+  });
+  initBenchmark({
+    corpus,
+    indexStrategy: 'ExactWordIndexStrategy',
+    searchIndex: 'UnorderedSearchIndex'
+  });
+
+  runNextTest();
+}
+
+function createBenchmark() {
+  return new Benchmark.Suite()
+    .on('cycle', (event) => {
+      console.log(String(event.target));
+      bb.add(event.target);
+    })
+    .on('complete', () => {
+      bb.log();
+
+      runNextTest();
+    });
+}
+
+function runNextTest() {
+  if (benchmarks.length) {
+    console.log('Starting test');
+
+    benchmarks.pop().run({ 'async': true });
+  } else {
+    console.log('All tests complete');
+  }
+}
+
+function initBenchmark({
+  corpus,
+  indexStrategy,
+  searchIndex
+}) {
+  console.log(`Initializing benchmark for indexStrategy:${indexStrategy}, searchIndex:${searchIndex}`);
+
+  initBenchmarkForCreateIndex({
+    corpus,
+    indexStrategy,
+    searchIndex
+  });
+  initBenchmarkForSearch({
+    corpus,
+    indexStrategy,
+    searchIndex
+  });
+}
+
+function initBenchmarkForCreateIndex({
+  corpus,
+  indexStrategy,
+  searchIndex
+}) {
+  var benchmark = createBenchmark();
+
+  versions.forEach(version => {
+    var IndexStrategy = version.module[indexStrategy];
+    var Search = version.module.Search;
+    var SearchIndex = version.module[searchIndex];
+
+    benchmark.add(`[${version.label}]\tCreate index\tsearchIndex:${searchIndex}\tindexStrategy:${indexStrategy}`, () => {
+      var search = new Search('isbn');
+      search.indexStrategy = new IndexStrategy();
+      search.searchIndex = new SearchIndex('isbn');
+      search.addIndex('title');
+      search.addIndex('author');
+      search.addDocuments(corpus);
+    });
+  });
+
+  benchmarks.push(benchmark);
+}
+
+function initBenchmarkForSearch({
+  corpus,
+  indexStrategy,
+  searchIndex
+}) {
+  var searchTerms = ['letter', 'world', 'wife', 'love', 'foobar'];
+  var searchTermsLength = searchTerms.length;
+
+  var benchmark = createBenchmark();
+
+  versions.forEach(version => {
+    var IndexStrategy = version.module[indexStrategy];
+    var Search = version.module.Search;
+    var SearchIndex = version.module[searchIndex];
+
+    var search = new Search('isbn');
+    search.indexStrategy = new IndexStrategy();
+    search.searchIndex = new SearchIndex('isbn');
+    search.addIndex('title');
+    search.addIndex('author');
+    search.addDocuments(corpus);
+
+    benchmark.add(`[${version.label}]\tSearch strings\tsearchIndex:${searchIndex}\tindexStrategy:${indexStrategy}`, () => {
+      for (var i = 0, length = searchTermsLength; i < length; i++) {
+        search.search(searchTerms[i]);
+      }
+    });
+  });
+
+  benchmarks.push(benchmark);
+}
