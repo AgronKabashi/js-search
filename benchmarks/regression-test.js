@@ -9,12 +9,12 @@ var versions = [
   },
   {
     label: 'local',
-    module: require('../dist/commonjs/index')
+    module: require('../dist/umd/js-search')
   }
 ]
 
 fs.readFile('books.json', 'utf8',
-  (err, data) => setupBenchmarks(JSON.parse(data))
+  (err, data) => setupBenchmarks(JSON.parse(data).books)
 );
 
 var benchmarks = [];
@@ -98,7 +98,7 @@ function initBenchmarkForCreateIndex({
     var Search = version.module.Search;
     var SearchIndex = version.module[searchIndex];
 
-    benchmark.add(`[${version.label}]\tCreate index\tsearchIndex:${searchIndex}\tindexStrategy:${indexStrategy}`, () => {
+    benchmark.add(`[${version.label}]\tCreate index\t${searchIndex}\t${indexStrategy}`, () => {
       var search = new Search('isbn');
       search.indexStrategy = new IndexStrategy();
       search.searchIndex = new SearchIndex('isbn');
@@ -133,7 +133,7 @@ function initBenchmarkForSearch({
     search.addIndex('author');
     search.addDocuments(corpus);
 
-    benchmark.add(`[${version.label}]\tSearch strings\tsearchIndex:${searchIndex}\tindexStrategy:${indexStrategy}`, () => {
+    benchmark.add(`[${version.label}]\tSearch strings\t${searchIndex}\t${indexStrategy}`, () => {
       for (var i = 0, length = searchTermsLength; i < length; i++) {
         search.search(searchTerms[i]);
       }
